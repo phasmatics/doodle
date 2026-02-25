@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=1920, initial-scale=1" />
+  <title>OBS Doodle Canvas</title>
+  <style>
+    html, body {
+      width: 1920px;
+      height: 1080px;
+      margin: 0;
+      overflow: hidden;
+      background: transparent;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif;
+      user-select: none;
+    }
+
+    #root {
+      position: relative;
+      width: 1920px;
+      height: 1080px;
+    }
+
+    #panel {
+      position: absolute;
+      left: 18px;
+      top: 18px;
+      width: 100px;
+      padding: 10px 8px 8px;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.92);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+      backdrop-filter: blur(6px);
+      z-index: 30;
+      pointer-events: auto;
+    }
+
+    #panel h1 {
+      font-size: 11px;
+      margin: 0 0 6px;
+      letter-spacing: .02em;
+    }
+
+    .row { display: grid; gap: 6px; margin: 8px 0; }
+    .btnrow { display: grid; grid-template-columns: 1fr; gap: 6px; }
+
+    .panel-hidden { display: none !important; }
+
+    button {
+      border: 1px solid rgba(0,0,0,0.12);
+      background: #fff;
+      border-radius: 3px;
+      padding: 6px 6px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    button.active { outline: 1px solid rgb(153, 153, 153); }
+
+    label {
+      font-size: 10px;
+      opacity: 0.85;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+    input[type="range"] { width: 100%; max-width: 84px; }
+    .hidden { display: none !important; }
+
+    #panelHandle {
+      cursor: move;
+      padding: 4px 0 6px;
+      margin: -2px 0 2px;
+      border-radius: 3px 3px 0 0;
+      position: relative;
+    }
+    #panelHandle::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      bottom: 2px;
+      width: 24px;
+      height: 3px;
+      margin-left: -12px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 2px;
+    }
+
+    .color-swatch {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 3px;
+      margin: 6px 0;
+    }
+    .color-swatch button {
+      aspect-ratio: 1;
+      min-height: 16px;
+      padding: 0;
+      border: 1px solid rgba(0,0,0,0.2);
+      border-radius: 4px;
+    }
+    .color-swatch button.active-swatch {
+      outline: 1px solid rgba(0,0,0,0.5);
+      outline-offset: 0px;
+    }
+    .color-row { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+    .color-row label { flex: 0 0 14px; font-size: 10px; }
+    .color-row input[type="range"] { flex: 1; }
+
+    canvas {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+    }
+
+    #overlay { z-index: 20; pointer-events: none; }
+    #paint   { z-index: 10; }
+  </style>
+</head>
+
+<body>
+  <div id="root">
+    <div id="panel">
+      <div id="panelHandle" title="ドラッグで移動">
+        <h1>OBS Doodle</h1>
+      </div>
+<div class="row">
+      <div class="btnrow">
+        <button id="toolBrush" class="active">ブラシ</button>
+      </div>
+      <div class="btnrow size-row">
+        <label>
+          <span>●</span>
+          <input id="size" type="range" min="1" max="120" value="18" />
+        </label>
+      </div>
+      <div class="btnrow">
+        <button id="toolEraser">消しゴム</button>
+      </div>
+      <div class="btnrow">
+        <button id="toolSelect">長方形選択</button>
+      </div>
+      <div class="btnrow">
+        <button id="btnClear">全消去</button>
+      </div>
+</div>
+      <div class="btnrow panel-hidden">
+        <button id="btnUndo">元に戻す (Z)</button>
+      </div>
+      <div class="btnrow panel-hidden">
+        <button id="btnRedo">やり直し (Y)</button>
+      </div>
+
+      <div class="row">
+        <div class="color-swatch" id="colorSwatch" aria-label="カラースウォッチ"></div>
+        <div class="color-row">
+          <label>R</label>
+          <input id="colorR" type="range" min="0" max="255" value="17" />
+        </div>
+        <div class="color-row">
+          <label>G</label>
+          <input id="colorG" type="range" min="0" max="255" value="17" />
+        </div>
+        <div class="color-row">
+          <label>B</label>
+          <input id="colorB" type="range" min="0" max="255" value="17" />
+        </div>
+
+        <div class="btnrow">
+          <button id="btnDeleteSel">選択削除</button>
+        </div>
+        <div class="btnrow">
+          <button id="btnDeselect">選択解除</button>
+        </div>
+
+        <div class="btnrow panel-hidden">
+          <button id="btnHide">パネル非表示</button>
+        </div>
+        <div class="btnrow panel-hidden">
+          <button id="btnResetTool">ブラシに戻す</button>
+        </div>
+
+        <div class="btnrow">
+          <button id="btnSavePng">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <canvas id="paint" width="1920" height="1080"></canvas>
+    <canvas id="overlay" width="1920" height="1080"></canvas>
+  </div>
+
+  <script>
+    // ========= 定数・設定 =========
+    const Tool = { BRUSH: "brush", ERASER: "eraser", SELECT: "select" };
+    const CANVAS_W = 1920;
+    const CANVAS_H = 1080;
+    const UNDO_LIMIT = 20;
+    const MIN_SELECT_SIZE = 2;
+
+    // ========= DOM・コンテキスト =========
+    const paintEl = document.getElementById("paint");
+    const overlayEl = document.getElementById("overlay");
+    const ctx = paintEl.getContext("2d", { alpha: true });
+    const octx = overlayEl.getContext("2d", { alpha: true });
+
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    // ========= 描画ツール状態 =========
+    let tool = Tool.BRUSH;
+    let brushSize = 18;
+    let brushColor = "#111111";
+    let isDrawing = false;
+
+    // ========= 選択状態（Photoshop的） =========
+    // 選択枠のみ：中身は消さない。範囲内ドラッグ開始で「切り抜き」→ 移動 → pointerup で貼り付け確定
+    let selectionRect = null;   // { x, y, w, h } 整数
+    let isSelecting = false;
+    let selectStart = null;     // { x, y }
+
+    let moving = false;         // 選択範囲内をドラッグ中（切り抜き済み）
+    let moveImageData = null;   // ImageData（切り抜いたピクセル）
+    let moveFrom = null;        // { x, y } 切り抜いた元位置（キャンセル復帰用）
+    let dragOffset = null;      // { x, y } ドラッグ開始時のオフセット
+
+    // ========= Undo / Redo =========
+    let undoStack = [];
+    let redoStack = [];
+
+    // ========= 座標（OBS Interact 対応：getBoundingClientRect でスケール補正） =========
+    function getCanvasPoint(e) {
+      const rect = paintEl.getBoundingClientRect();
+      const scaleX = paintEl.width / rect.width;
+      const scaleY = paintEl.height / rect.height;
+      return {
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY,
+      };
+    }
+
+    function toIntRect(r) {
+      const x = Math.floor(r.x);
+      const y = Math.floor(r.y);
+      const w = Math.max(0, Math.floor(r.w));
+      const h = Math.max(0, Math.floor(r.h));
+      return { x, y, w, h };
+    }
+
+    // ========= Overlay 描画 =========
+    function clearOverlay() {
+      octx.clearRect(0, 0, overlayEl.width, overlayEl.height);
+    }
+
+    function drawSelectionMarquee(r) {
+      if (!r || r.w <= 0 || r.h <= 0) return;
+      octx.save();
+      octx.setLineDash([8, 6]);
+      octx.lineWidth = 2;
+      octx.strokeStyle = "rgba(0,0,0,0.65)";
+      octx.strokeRect(r.x + 0.5, r.y + 0.5, r.w, r.h);
+      octx.restore();
+    }
+
+    function redrawOverlay() {
+      clearOverlay();
+      if (moving && moveImageData && selectionRect) {
+        const ix = Math.floor(selectionRect.x);
+        const iy = Math.floor(selectionRect.y);
+        octx.putImageData(moveImageData, ix, iy);
+      }
+      if (selectionRect) drawSelectionMarquee(selectionRect);
+    }
+
+    // ========= 選択範囲の正規化（Shift=正方形, Alt=中心から） =========
+    function computeSelectionRect(start, current, shiftKey, altKey) {
+      let x0 = start.x, y0 = start.y;
+      let x1 = current.x, y1 = current.y;
+
+      if (altKey) {
+        const cx = start.x, cy = start.y;
+        const halfW = (current.x - cx) / 2;
+        const halfH = (current.y - cy) / 2;
+        x0 = cx - halfW;
+        y0 = cy - halfH;
+        x1 = cx + halfW;
+        y1 = cy + halfH;
+      }
+
+      let x = Math.min(x0, x1);
+      let y = Math.min(y0, y1);
+      let w = Math.abs(x1 - x0);
+      let h = Math.abs(y1 - y0);
+
+      if (shiftKey) {
+        const s = Math.max(w, h);
+        w = s;
+        h = s;
+      }
+
+      const r = { x, y, w, h };
+      const clamped = clampRectToCanvas(r);
+      return toIntRect(clamped);
+    }
+
+    function clampRectToCanvas(r) {
+      const x = Math.max(0, Math.min(paintEl.width, r.x));
+      const y = Math.max(0, Math.min(paintEl.height, r.y));
+      const w = Math.max(0, Math.min(paintEl.width - x, r.w));
+      const h = Math.max(0, Math.min(paintEl.height - y, r.h));
+      return { x, y, w, h };
+    }
+
+    function isPointInRect(p, r) {
+      return p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
+    }
+
+    // ========= 選択時のブラシ/消しゴム clip =========
+    function beginClipSelection() {
+      if (!selectionRect) return;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(selectionRect.x, selectionRect.y, selectionRect.w, selectionRect.h);
+      ctx.clip();
+    }
+
+    function endClipSelection() {
+      if (!selectionRect) return;
+      ctx.restore();
+    }
+
+    // ========= Undo / Redo 実装 =========
+    function pushUndo() {
+      redoStack.length = 0;
+      const snapshot = ctx.getImageData(0, 0, paintEl.width, paintEl.height);
+      undoStack.push(snapshot);
+      if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+    }
+
+    function undo() {
+      if (moving) cancelMove();
+      if (undoStack.length === 0) return;
+      const current = ctx.getImageData(0, 0, paintEl.width, paintEl.height);
+      redoStack.push(current);
+      const prev = undoStack.pop();
+      ctx.putImageData(prev, 0, 0);
+      selectionRect = null;
+      redrawOverlay();
+    }
+
+    function redo() {
+      if (redoStack.length === 0) return;
+      const current = ctx.getImageData(0, 0, paintEl.width, paintEl.height);
+      undoStack.push(current);
+      const next = redoStack.pop();
+      ctx.putImageData(next, 0, 0);
+      selectionRect = null;
+      redrawOverlay();
+    }
+
+    // ========= 選択「切り抜き」移動（Photoshop的） =========
+    function startMove(p) {
+      if (!selectionRect || selectionRect.w <= 0 || selectionRect.h <= 0) return;
+      const r = selectionRect;
+      pushUndo();
+      moveImageData = ctx.getImageData(r.x, r.y, r.w, r.h);
+      ctx.clearRect(r.x, r.y, r.w, r.h);
+      moving = true;
+      moveFrom = { x: r.x, y: r.y };
+      dragOffset = { x: p.x - r.x, y: p.y - r.y };
+      redrawOverlay();
+    }
+
+    function commitMove() {
+      if (!moving || !moveImageData || !selectionRect) return;
+      const ix = Math.floor(selectionRect.x);
+      const iy = Math.floor(selectionRect.y);
+      ctx.putImageData(moveImageData, ix, iy);
+      moving = false;
+      moveImageData = null;
+      moveFrom = null;
+      dragOffset = null;
+      redrawOverlay();
+    }
+
+    function cancelMove() {
+      if (!moving || !moveImageData || !moveFrom || !selectionRect) return;
+      ctx.putImageData(moveImageData, moveFrom.x, moveFrom.y);
+      selectionRect = { ...selectionRect, x: moveFrom.x, y: moveFrom.y };
+      moving = false;
+      moveImageData = null;
+      moveFrom = null;
+      dragOffset = null;
+      redrawOverlay();
+    }
+
+    function deselect() {
+      if (moving) cancelMove();
+      selectionRect = null;
+      redrawOverlay();
+    }
+
+    // ========= ツール切り替え =========
+    function setTool(next) {
+      if (moving) commitMove();
+      tool = next;
+      document.getElementById("toolBrush").classList.toggle("active", tool === Tool.BRUSH);
+      document.getElementById("toolEraser").classList.toggle("active", tool === Tool.ERASER);
+      document.getElementById("toolSelect").classList.toggle("active", tool === Tool.SELECT);
+      redrawOverlay();
+    }
+
+    // ========= UI バインド =========
+    document.getElementById("toolBrush").onclick = () => setTool(Tool.BRUSH);
+    document.getElementById("toolEraser").onclick = () => setTool(Tool.ERASER);
+    document.getElementById("toolSelect").onclick = () => setTool(Tool.SELECT);
+
+    document.getElementById("size").oninput = () => { brushSize = +document.getElementById("size").value; };
+
+    // 基本16色（WEB向け）＋ スウォッチとRGBスライダー連動
+    const WEB_SAFE_16 = [
+      "#000000", "#FFFFFF", "#808080", "#C0C0C0",
+      "#800000", "#FF0000", "#808000", "#FFFF00",
+      "#008000", "#00FF00", "#008080", "#00FFFF",
+      "#000080", "#0000FF", "#800080", "#FF00FF"
+    ];
+    function hexToRgb(hex) {
+      const n = parseInt(hex.slice(1), 16);
+      return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+    }
+    function rgbToHex(r, g, b) {
+      return "#" + [r, g, b].map(x => Math.max(0, Math.min(255, Math.round(x))).toString(16).padStart(2, "0")).join("");
+    }
+    function setBrushColorFromHex(hex) {
+      brushColor = hex;
+      const rgb = hexToRgb(hex);
+      document.getElementById("colorR").value = rgb.r;
+      document.getElementById("colorG").value = rgb.g;
+      document.getElementById("colorB").value = rgb.b;
+      document.querySelectorAll(".color-swatch button").forEach((btn) => {
+        btn.classList.toggle("active-swatch", btn.dataset.hex === hex);
+      });
+    }
+    function setBrushColorFromRgb() {
+      const r = +document.getElementById("colorR").value;
+      const g = +document.getElementById("colorG").value;
+      const b = +document.getElementById("colorB").value;
+      brushColor = rgbToHex(r, g, b);
+      document.querySelectorAll(".color-swatch button").forEach((btn) => {
+        btn.classList.toggle("active-swatch", btn.dataset.hex === brushColor);
+      });
+    }
+    const swatchEl = document.getElementById("colorSwatch");
+    WEB_SAFE_16.forEach((hex) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.style.background = hex;
+      btn.dataset.hex = hex;
+      btn.title = hex;
+      btn.classList.toggle("active-swatch", hex === brushColor);
+      btn.onclick = () => setBrushColorFromHex(hex);
+      swatchEl.appendChild(btn);
+    });
+    document.getElementById("colorR").oninput = setBrushColorFromRgb;
+    document.getElementById("colorG").oninput = setBrushColorFromRgb;
+    document.getElementById("colorB").oninput = setBrushColorFromRgb;
+
+    document.getElementById("btnClear").onclick = () => {
+      if (moving) cancelMove();
+      pushUndo();
+      ctx.clearRect(0, 0, paintEl.width, paintEl.height);
+      selectionRect = null;
+      clearOverlay();
+    };
+
+    document.getElementById("btnUndo").onclick = undo;
+    document.getElementById("btnRedo").onclick = redo;
+
+    document.getElementById("btnHide").onclick = () => document.getElementById("panel").classList.toggle("hidden");
+    document.getElementById("btnResetTool").onclick = () => setTool(Tool.BRUSH);
+    document.getElementById("btnDeselect").onclick = deselect;
+
+    document.getElementById("btnDeleteSel").onclick = () => {
+      if (!selectionRect) return;
+      if (moving) cancelMove();
+      pushUndo();
+      ctx.clearRect(selectionRect.x, selectionRect.y, selectionRect.w, selectionRect.h);
+      selectionRect = null;
+      redrawOverlay();
+    };
+
+    document.getElementById("btnSavePng").onclick = () => {
+      const dataUrl = paintEl.toDataURL("image/png");
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = "doodle-" + Date.now() + ".png";
+      a.click();
+    };
+
+    window.addEventListener("keydown", (e) => {
+      const k = e.key.toLowerCase();
+      if (k === "h") document.getElementById("panel").classList.toggle("hidden");
+
+      if (e.key === "Escape") {
+        if (moving) cancelMove();
+        else selectionRect = null;
+        redrawOverlay();
+      }
+
+      if (e.ctrlKey || e.metaKey) {
+        if (k === "z") {
+          e.preventDefault();
+          if (e.shiftKey) redo();
+          else undo();
+        } else if (k === "y") {
+          e.preventDefault();
+          redo();
+        }
+      }
+    });
+
+    // ========= パネルドラッグ（上部ハンドルで移動） =========
+    (function () {
+      const panel = document.getElementById("panel");
+      const handle = document.getElementById("panelHandle");
+      let drag = null;
+      function getPanelXY() {
+        const left = parseFloat(panel.style.left);
+        const top = parseFloat(panel.style.top);
+        return {
+          x: isNaN(left) ? 18 : left,
+          y: isNaN(top) ? 18 : top,
+        };
+      }
+      function onDown(e) {
+        if (e.button !== 0) return;
+        const xy = getPanelXY();
+        drag = { startX: e.clientX, startY: e.clientY, startLeft: xy.x, startTop: xy.y };
+        handle.setPointerCapture(e.pointerId);
+      }
+      function onMove(e) {
+        if (!drag) return;
+        const dx = e.clientX - drag.startX;
+        const dy = e.clientY - drag.startY;
+        panel.style.left = (drag.startLeft + dx) + "px";
+        panel.style.top = (drag.startTop + dy) + "px";
+      }
+      function onUp() {
+        drag = null;
+      }
+      handle.addEventListener("pointerdown", onDown);
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointercancel", onUp);
+    })();
+
+    // ========= ポインター（paint に集約・setPointerCapture で OBS Interact 安定） =========
+    paintEl.addEventListener("pointerdown", (e) => {
+      if (e.target.closest && e.target.closest("#panel")) return;
+      paintEl.setPointerCapture(e.pointerId);
+      const p = getCanvasPoint(e);
+
+      if (tool === Tool.SELECT) {
+        if (selectionRect && isPointInRect(p, selectionRect)) {
+          startMove(p);
+          return;
+        }
+        if (moving) commitMove();
+        isSelecting = true;
+        selectStart = { x: p.x, y: p.y };
+        selectionRect = toIntRect({ x: p.x, y: p.y, w: 0, h: 0 });
+        redrawOverlay();
+        return;
+      }
+
+      if (moving) commitMove();
+      isDrawing = true;
+      pushUndo();
+      beginClipSelection();
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+    });
+
+    paintEl.addEventListener("pointermove", (e) => {
+      const p = getCanvasPoint(e);
+      const shift = e.shiftKey;
+      const alt = e.altKey;
+
+      if (tool === Tool.SELECT) {
+        if (moving && selectionRect && dragOffset) {
+          const nx = Math.round(p.x - dragOffset.x);
+          const ny = Math.round(p.y - dragOffset.y);
+          const clamped = clampRectToCanvas({ x: nx, y: ny, w: selectionRect.w, h: selectionRect.h });
+          selectionRect = toIntRect(clamped);
+          redrawOverlay();
+          return;
+        }
+        if (isSelecting && selectStart) {
+          selectionRect = computeSelectionRect(selectStart, p, shift, alt);
+          redrawOverlay();
+          return;
+        }
+        return;
+      }
+
+      if (!isDrawing) return;
+
+      ctx.lineWidth = brushSize;
+      if (tool === Tool.ERASER) {
+        ctx.globalCompositeOperation = "destination-out";
+        ctx.strokeStyle = "rgba(0,0,0,1)";
+      } else {
+        ctx.globalCompositeOperation = "source-over";
+        ctx.strokeStyle = brushColor;
+      }
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+    });
+
+    paintEl.addEventListener("pointerup", (e) => {
+      const p = getCanvasPoint(e);
+
+      if (tool === Tool.SELECT) {
+        if (moving) {
+          commitMove();
+          return;
+        }
+        if (isSelecting) {
+          isSelecting = false;
+          if (selectionRect && (selectionRect.w < MIN_SELECT_SIZE || selectionRect.h < MIN_SELECT_SIZE))
+            selectionRect = null;
+          selectStart = null;
+          redrawOverlay();
+          return;
+        }
+        return;
+      }
+
+      if (!isDrawing) return;
+      isDrawing = false;
+      ctx.closePath();
+      ctx.globalCompositeOperation = "source-over";
+      endClipSelection();
+    });
+
+    paintEl.addEventListener("pointercancel", () => {
+      if (moving) cancelMove();
+      isSelecting = false;
+      isDrawing = false;
+      selectStart = null;
+      endClipSelection();
+      redrawOverlay();
+    });
+
+    redrawOverlay();
+  </script>
+</body>
+</html>
