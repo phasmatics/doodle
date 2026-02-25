@@ -103,6 +103,17 @@
       outline: 1px solid rgba(0,0,0,0.5);
       outline-offset: 0px;
     }
+    .current-color-swatch {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      min-width: 12px;
+      min-height: 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(0,0,0,0.25);
+      background: #111111;
+      vertical-align: middle;
+    }
     .color-row { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
     .color-row label { flex: 0 0 14px; font-size: 10px; }
     .color-row input[type="range"] { flex: 1; }
@@ -131,7 +142,7 @@
       </div>
       <div class="btnrow size-row">
         <label>
-          <span>●</span>
+          <span id="currentColorSwatch" class="current-color-swatch" title="現在の色"></span>
           <input id="size" type="range" min="1" max="120" value="18" />
         </label>
       </div>
@@ -432,6 +443,10 @@
     function rgbToHex(r, g, b) {
       return "#" + [r, g, b].map(x => Math.max(0, Math.min(255, Math.round(x))).toString(16).padStart(2, "0")).join("");
     }
+    function updateCurrentColorSwatch() {
+      const el = document.getElementById("currentColorSwatch");
+      if (el) el.style.background = brushColor;
+    }
     function setBrushColorFromHex(hex) {
       brushColor = hex;
       const rgb = hexToRgb(hex);
@@ -441,6 +456,7 @@
       document.querySelectorAll(".color-swatch button").forEach((btn) => {
         btn.classList.toggle("active-swatch", btn.dataset.hex === hex);
       });
+      updateCurrentColorSwatch();
     }
     function setBrushColorFromRgb() {
       const r = +document.getElementById("colorR").value;
@@ -450,6 +466,7 @@
       document.querySelectorAll(".color-swatch button").forEach((btn) => {
         btn.classList.toggle("active-swatch", btn.dataset.hex === brushColor);
       });
+      updateCurrentColorSwatch();
     }
     const swatchEl = document.getElementById("colorSwatch");
     WEB_SAFE_16.forEach((hex) => {
@@ -465,6 +482,8 @@
     document.getElementById("colorR").oninput = setBrushColorFromRgb;
     document.getElementById("colorG").oninput = setBrushColorFromRgb;
     document.getElementById("colorB").oninput = setBrushColorFromRgb;
+
+    updateCurrentColorSwatch();
 
     document.getElementById("btnClear").onclick = () => {
       if (moving) cancelMove();
